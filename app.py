@@ -92,11 +92,23 @@ def planet_details(name):
     t = ts.now()
     observer = earth + Topos(latitude_degrees=lat, longitude_degrees=lng)
 
-    try:
-        body = planets[name.lower()] if name.lower() in planets else planets[name]
-    except:
+    planet_keys = {
+        "Mercury": "mercury",
+        "Venus": "venus",
+        "Earth": "earth",
+        "Mars": "mars",
+        "Jupiter": "jupiter barycenter",
+        "Saturn": "saturn barycenter",
+        "Uranus": "uranus barycenter",
+        "Neptune": "neptune barycenter",
+        "Pluto": "pluto barycenter"
+    }
+
+    key = planet_keys.get(name.capitalize())
+    if not key or key not in planets:
         return jsonify({"error": "Invalid planet name"}), 404
 
+    body = planets[key]
     astro = observer.at(t).observe(body).apparent()
     alt, az, dist = astro.altaz()
 
@@ -114,6 +126,7 @@ def planet_details(name):
         "day_length_hours": info.get("day_length_hours"),
         "datetime": t.utc_iso()
     })
+
 
 if __name__ == "__main__":
     app.run(debug=True)
