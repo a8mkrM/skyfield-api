@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from skyfield.api import load, Topos
 from skyfield.data import hipparcos
 
 app = Flask(__name__)
+CORS(app) 
 
 # تحميل البيانات الفلكية
 planets = load('de421.bsp')
