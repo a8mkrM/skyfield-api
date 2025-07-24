@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from skyfield.api import load, Topos
 from skyfield.data import hipparcos
+from skyfield.starlib import Star
 
 app = Flask(__name__)
 CORS(app) 
@@ -26,9 +27,8 @@ named_stars = {
 
 @app.route("/api/astro")
 def astro_data():
-    lat = float(request.args.get("lat", 23.6))   # default: Muscat
+    lat = float(request.args.get("lat", 23.6))
     lng = float(request.args.get("lng", 58.5))
-
     observer = earth + Topos(latitude_degrees=lat, longitude_degrees=lng)
     t = ts.now()
 
@@ -39,7 +39,7 @@ def astro_data():
         "stars": {}
     }
 
-    # الشمس، القمر، والكواكب
+    # الكواكب
     bodies = {
         "Sun": "sun",
         "Moon": "moon",
@@ -63,9 +63,12 @@ def astro_data():
             "distance_au": round(distance.au, 5)
         }
 
-    # بعض النجوم المعروفة
+    # النجوم
     for name, hip_id in named_stars.items():
-        star = stars.loc[hip_id]
+        if hip_id not in stars.index:
+            continue
+        row = stars.loc[hip_id]
+        star = Star(ra_hours=row['ra_hours'], dec_degrees=row['dec_degrees'])
         astrometric = observer.at(t).observe(star).apparent()
         alt, az, _ = astrometric.altaz()
         result["stars"][name] = {
