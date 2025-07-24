@@ -3,3 +3,4 @@ gunicorn
 skyfield
 jplephem
 pandas
+flask-cors
