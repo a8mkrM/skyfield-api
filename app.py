@@ -1,55 +1,77 @@
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 from skyfield.api import load, Topos
+from skyfield.data import hipparcos
 
 app = Flask(__name__)
 
+# تحميل البيانات الفلكية
+planets = load('de421.bsp')
 ts = load.timescale()
-eph = load('de421.bsp')
+earth = planets['earth']
 
-# مسقط، عمان
-observer = eph['earth'].topos(latitude_degrees=23.6, longitude_degrees=58.5)
+# تحميل النجوم الساطعة من كتالوج Hipparcos
+with load.open(hipparcos.URL) as f:
+    stars = hipparcos.load_dataframe(f)
 
-@app.route('/api/sun')
-def sun_position():
+# اختيار نجوم معروفة
+named_stars = {
+    "Sirius": 32349,
+    "Betelgeuse": 27989,
+    "Vega": 91262,
+    "Altair": 97649,
+    "Rigel": 24436
+}
+
+@app.route("/api/astro")
+def astro_data():
+    lat = float(request.args.get("lat", 23.6))   # default: Muscat
+    lng = float(request.args.get("lng", 58.5))
+
+    observer = earth + Topos(latitude_degrees=lat, longitude_degrees=lng)
     t = ts.now()
-    astrometric = observer.at(t).observe(eph['sun']).apparent()
-    alt, az, distance = astrometric.altaz()
-    return jsonify({
-        'altitude_deg': round(alt.degrees, 2),
-        'azimuth_deg': round(az.degrees, 2),
-        'distance_au': round(distance.au, 6)
-    })
 
-@app.route('/api/moon')
-def moon_position():
-    t = ts.now()
-    astrometric = observer.at(t).observe(eph['moon']).apparent()
-    alt, az, distance = astrometric.altaz()
-    return jsonify({
-        'altitude_deg': round(alt.degrees, 2),
-        'azimuth_deg': round(az.degrees, 2),
-        'distance_au': round(distance.au, 6)
-    })
+    result = {
+        "datetime": t.utc_iso(),
+        "location": {"lat": lat, "lng": lng},
+        "sun_moon_planets": {},
+        "stars": {}
+    }
 
-@app.route('/api/planets')
-def planets_positions():
-    t = ts.now()
-    planet_names = [
-        'mercury', 'venus', 'mars',
-        'jupiter barycenter', 'saturn barycenter',
-        'uranus barycenter', 'neptune barycenter'
-    ]
-    results = {}
-    for name in planet_names:
-        planet = eph[name]
-        astrometric = observer.at(t).observe(planet).apparent()
+    # الشمس، القمر، والكواكب
+    bodies = {
+        "Sun": "sun",
+        "Moon": "moon",
+        "Mercury": "mercury",
+        "Venus": "venus",
+        "Mars": "mars",
+        "Jupiter": "jupiter barycenter",
+        "Saturn": "saturn barycenter",
+        "Uranus": "uranus barycenter",
+        "Neptune": "neptune barycenter",
+        "Pluto": "pluto barycenter"
+    }
+
+    for name, key in bodies.items():
+        body = planets[key]
+        astrometric = observer.at(t).observe(body).apparent()
         alt, az, distance = astrometric.altaz()
-        results[name.title()] = {
-            'altitude_deg': round(alt.degrees, 2),
-            'azimuth_deg': round(az.degrees, 2),
-            'distance_au': round(distance.au, 6)
+        result["sun_moon_planets"][name] = {
+            "altitude_deg": round(alt.degrees, 2),
+            "azimuth_deg": round(az.degrees, 2),
+            "distance_au": round(distance.au, 5)
         }
-    return jsonify(results)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # بعض النجوم المعروفة
+    for name, hip_id in named_stars.items():
+        star = stars.loc[hip_id]
+        astrometric = observer.at(t).observe(star).apparent()
+        alt, az, _ = astrometric.altaz()
+        result["stars"][name] = {
+            "altitude_deg": round(alt.degrees, 2),
+            "azimuth_deg": round(az.degrees, 2)
+        }
+
+    return jsonify(result)
+
+if __name__ == "__main__":
+    app.run(debug=True)
